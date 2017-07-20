@@ -7,6 +7,7 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include <errno.h>
 #include <limits.h>
 
@@ -114,26 +115,58 @@ pid_t execute(char *progname, char **argv, FILE **log_handle)
 
 //----------------------------------------------------------------------------
 
+pid_t child_process = 0;
+FILE *log_handle = NULL;
+
+void signal_handler(int signum)
+{
+  if (child_process > 0) {
+    if (log_handle != NULL)
+      fprintf(log_handle, "## @%d received signal %d, forwarding to child\n",
+              time(NULL), signum);
+    kill(child_process, signum);
+  }
+}
+
+void set_signal_handler(void)
+{
+  struct sigaction sighandler;
+  memset(&sighandler, 0, sizeof(sighandler));
+  sighandler.sa_handler = signal_handler;
+  sigemptyset(&sighandler.sa_mask);
+  for (int sig = 1; sig < 64; ++sig) {
+    if (sig != SIGCONT && sig != SIGCHLD)
+      sigaction(sig, &sighandler, NULL);
+  }
+}
+
+//----------------------------------------------------------------------------
+
 int main(int argc, char **argv)
 {
-  FILE *log_handle = NULL;
-  pid_t process = execute(argv[0], argv, &log_handle);
+  set_signal_handler();
+  child_process = execute(argv[0], argv, &log_handle);
 
-  if (process < 0) {
+  if (child_process < 0) {
     fprintf(stderr, "executing %s failed: %s\n", argv[0], strerror(errno));
     abort();
   }
 
   int status;
-  waitpid(process, &status, 0);
+  while (waitpid(child_process, &status, 0) < 0 && errno == EINTR) {
+    // nothing()
+  }
 
   if (WIFEXITED(status)) { // regular exit
-    fprintf(log_handle, "## @%d exit %d\n", time(NULL), WEXITSTATUS(status));
+    fprintf(log_handle, "## @%d child exited with code %d\n",
+            time(NULL), WEXITSTATUS(status));
     fclose(log_handle);
     return WEXITSTATUS(status);
   } else { // signal
-    fprintf(log_handle, "## @%d signal %d\n", time(NULL), WTERMSIG(status));
+    fprintf(log_handle, "## @%d child terminated on signal %d\n",
+            time(NULL), WTERMSIG(status));
     fclose(log_handle);
+    signal(WTERMSIG(status), SIG_DFL); // only this signal needs to be reset
     raise(WTERMSIG(status));
   }
 
