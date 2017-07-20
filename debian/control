@@ -1,0 +1,12 @@
+Source: crashceptor
+Maintainer: Stanislaw Klekot <dozzie@jarowit.net>
+Section: admin
+Priority: extra
+Build-Depends: debhelper (>> 7.0.0), make
+
+Package: crashceptor
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: process crash interceptor
+ Crashceptor is a tool written to leave some trace when some daemon crashes or
+ terminates unexpectedly.
