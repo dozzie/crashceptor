@@ -1,4 +1,73 @@
 #!/bin/sh
 
-echo TODO
-exit 1
+ORIG_BIN_DIR=/var/lib/crashceptor
+CRASHCEPTOR_BINARY=/usr/lib/crashceptor/crashceptor
+
+usage() {
+  echo "Usage:"
+  echo "  ${0##*/} add <path>"
+  echo "  ${0##*/} remove <path>"
+  echo "  ${0##*/} list"
+}
+
+case $1 in
+  '' | -h | --help)
+    usage
+    exit 0
+  ;;
+  add)
+    BINARY=$2
+    BASENAME=${BINARY##*/}
+    if [ -e "$ORIG_BIN_DIR/$BASENAME" ]; then
+      echo "$BASENAME already exists" >&2
+      exit 1
+    fi
+    ln -s "$BINARY.crashceptor" "$ORIG_BIN_DIR/$BASENAME"
+    dpkg-divert --rename --divert "$BINARY.crashceptor" --add "$BINARY"
+    ln -s "$CRASHCEPTOR_BINARY" "$BINARY"
+  ;;
+  remove)
+    case $2 in
+      */*.crashceptor)
+        BINARY=${2%.crashceptor}
+        BASENAME=${BINARY##*/}
+      ;;
+      */*)
+        BINARY=$2
+        BASENAME=${BINARY##*/}
+      ;;
+      *)
+        BASENAME=$2
+        BINARY=`readlink "$ORIG_BIN_DIR/$BASENAME"`
+        BINARY=${BINARY%.crashceptor}
+      ;;
+    esac
+    if [ -z "$BINARY" -o -z "$BASENAME" -o ! -e "$ORIG_BIN_DIR/$BASENAME" ]; then
+      echo "Could not find $2" >&2
+      exit 1
+    fi
+    if [ "`readlink "$ORIG_BIN_DIR/$BASENAME"`" != "$BINARY.crashceptor" ]; then
+      echo "$BASENAME doesn't point to specified path" >&2
+      exit 1
+    fi
+    if [ "`readlink "$BINARY"`" != "$CRASHCEPTOR_BINARY" ]; then
+      echo "$BINARY is not a symlink to $CRASHCEPTOR_BINARY" >&2
+      exit 1
+    fi
+    rm -f "$BINARY"
+    dpkg-divert --rename --divert "$BINARY.crashceptor" --remove "$BINARY"
+    rm -f "$ORIG_BIN_DIR/$BASENAME"
+  ;;
+  list)
+    cd "$ORIG_BIN_DIR"
+    for BASENAME in *; do
+      [ -e "$BASENAME" ] || continue
+      TARGET=`readlink "$BASENAME"`
+      printf '%s %s\n' "$BASENAME" "${TARGET%.crashceptor}"
+    done
+  ;;
+  *)
+    usage >&2
+    exit 1
+  ;;
+esac
