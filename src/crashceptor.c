@@ -85,7 +85,7 @@ pid_t execute(char *progname, char **argv, FILE **log_handle)
   pid_t child = fork();
   if (child < 0) {
     int old_errno = errno;
-    fprintf(handle, "## @%d fork() failed: errno=%d (%s)\n",
+    fprintf(handle, "## @%ld fork() failed: errno=%d (%s)\n",
             time(NULL), errno, strerror(errno));
     fclose(handle);
     errno = old_errno;
@@ -103,12 +103,12 @@ pid_t execute(char *progname, char **argv, FILE **log_handle)
 
   dup2(fileno(handle), 1); // STDOUT
   dup2(fileno(handle), 2); // STDERR
-  fprintf(handle, "## @%d pid=%d executing %s\n",
+  fprintf(handle, "## @%ld pid=%d executing %s\n",
           time(NULL), getpid(), progname);
   fclose(handle);
 
   execv(exec_path, argv);
-  fprintf(stderr, "## @%d execv() failed: errno=%d (%s); aborting\n",
+  fprintf(stderr, "## @%ld execv() failed: errno=%d (%s); aborting\n",
           time(NULL), errno, strerror(errno));
   abort();
 }
@@ -122,7 +122,7 @@ void signal_handler(int signum)
 {
   if (child_process > 0) {
     if (log_handle != NULL)
-      fprintf(log_handle, "## @%d received signal %d, forwarding to child\n",
+      fprintf(log_handle, "## @%ld received signal %d, forwarding to child\n",
               time(NULL), signum);
     kill(child_process, signum);
   }
@@ -158,12 +158,12 @@ int main(int argc, char **argv)
   }
 
   if (WIFEXITED(status)) { // regular exit
-    fprintf(log_handle, "## @%d child exited with code %d\n",
+    fprintf(log_handle, "## @%ld child exited with code %d\n",
             time(NULL), WEXITSTATUS(status));
     fclose(log_handle);
     return WEXITSTATUS(status);
   } else { // signal
-    fprintf(log_handle, "## @%d child terminated on signal %d\n",
+    fprintf(log_handle, "## @%ld child terminated on signal %d\n",
             time(NULL), WTERMSIG(status));
     fclose(log_handle);
     signal(WTERMSIG(status), SIG_DFL); // only this signal needs to be reset

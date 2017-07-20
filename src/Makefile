@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-CFLAGS = -std=gnu99 -g -O2
+CFLAGS = -Wall -std=gnu99 -g -O2
 LDFLAGS =
 
 #LOG_DIR = /var/log/crashceptor
